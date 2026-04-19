@@ -37,7 +37,7 @@ func main() {
 	app.Post("/api/v1/ingest", func(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"status":  "success",
-			"message": "Gateway Sentinel aktif. Request diterima.",
+			"message": "Gateway aktif. Request diterima.",
 		})
 	})
 
