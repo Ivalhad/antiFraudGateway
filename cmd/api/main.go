@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"time"
 
 	"antiFraudGateway/pkg/crypto"
+	"antiFraudGateway/pkg/fraud"
 	"antiFraudGateway/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
@@ -52,7 +55,8 @@ func main() {
 
 	api.Get("/testEncrypt", func(c *fiber.Ctx) error {
 		secretKey := os.Getenv("AES_SECRET_KEY")
-		dummyData := `{"device_id": "DEV-999", "latitude": -5.3971, "longitude": 105.2668, "is_mock_location": false}`
+		timestamp := time.Now().Unix()
+		dummyData := fmt.Sprintf(`{"device_id":"DEV-999","latitude":-5.3971,"longitude":105.2668,"is_mock_location":false,"timestamp":%d}`, timestamp)
 
 		encryptedStr, err := crypto.EncryptAESGCM(dummyData, secretKey)
 		if err != nil {
@@ -61,7 +65,33 @@ func main() {
 			})
 		}
 
-		return c.JSON(fiber.Map{"payload": encryptedStr})
+		return c.JSON(fiber.Map{
+			"payload":   encryptedStr,
+			"raw_debug": dummyData,
+		})
+	})
+
+	api.Post("/testEncrypt", func(c *fiber.Ctx) error {
+		secretKey := os.Getenv("AES_SECRET_KEY")
+
+		rawBody := string(c.Body())
+		if rawBody == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Kirim JSON body yang ingin dienkripsi",
+			})
+		}
+
+		encryptedStr, err := crypto.EncryptAESGCM(rawBody, secretKey)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Gagal mengenkripsi: " + err.Error(),
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"payload":   encryptedStr,
+			"raw_debug": rawBody,
+		})
 	})
 
 	api.Post("/ingest", func(c *fiber.Ctx) error {
@@ -81,10 +111,47 @@ func main() {
 			})
 		}
 
+		var payload fraud.DevicePayload
+		if err := json.Unmarshal([]byte(decryptedData), &payload); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Data terdekripsi tapi format JSON payload tidak valid",
+			})
+		}
+
+		results := fraud.Evaluate(payload, redisClient)
+
+		if fraud.HasFraud(results) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"status":     "fraud_detected",
+				"message":    "Request ditolak karena terdeteksi aktivitas mencurigakan",
+				"violations": fraud.GetFraudResults(results),
+				"all_checks": results,
+			})
+		}
+
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
-			"status":   "success",
-			"message":  "Data berhasil didekripsi",
-			"raw_data": decryptedData,
+			"status":     "clean",
+			"message":    "Data lolos semua pengecekan fraud",
+			"payload":    payload,
+			"all_checks": results,
+		})
+	})
+
+	api.Post("/blacklist", func(c *fiber.Ctx) error {
+		var body struct {
+			DeviceID string `json:"device_id"`
+		}
+		if err := c.BodyParser(&body); err != nil || body.DeviceID == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Kirim device_id yang ingin di-blacklist",
+			})
+		}
+
+		redisClient.SAdd(ctx, "blacklist:devices", body.DeviceID)
+
+		return c.JSON(fiber.Map{
+			"status":  "success",
+			"message": fmt.Sprintf("Device '%s' berhasil ditambahkan ke blacklist", body.DeviceID),
 		})
 	})
 
@@ -95,3 +162,4 @@ func main() {
 	log.Printf("INFO: Server berjalan di port %s\n", port)
 	log.Fatal(app.Listen(":" + port))
 }
+
