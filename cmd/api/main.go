@@ -8,13 +8,17 @@ import (
 	"os"
 	"time"
 
+	"antiFraudGateway/pkg/audit"
 	"antiFraudGateway/pkg/crypto"
 	"antiFraudGateway/pkg/fraud"
 	"antiFraudGateway/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var ctx = context.Background()
@@ -36,6 +40,23 @@ func main() {
 		log.Fatalf("FATAL: Gagal terhubung ke Redis: %v", err)
 	}
 	log.Println("INFO: Koneksi Redis berhasil.")
+
+	mongoURI := os.Getenv("MONGODB_URI")
+	mongoDBName := os.Getenv("MONGODB_DATABASE")
+
+	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
+	if err != nil {
+		log.Fatalf("FATAL: Gagal membuat koneksi MongoDB: %v", err)
+	}
+	if err := mongoClient.Ping(ctx, nil); err != nil {
+		log.Fatalf("FATAL: Gagal terhubung ke MongoDB: %v", err)
+	}
+	log.Println("INFO: Koneksi MongoDB berhasil.")
+
+	auditCollection := mongoClient.Database(mongoDBName).Collection("audit_logs")
+
+	auditChan := make(chan audit.AuditLog, 1000)
+	audit.StartWorkerPool(ctx, auditCollection, auditChan, 3)
 
 	app := fiber.New()
 
@@ -96,6 +117,7 @@ func main() {
 
 	api.Post("/ingest", func(c *fiber.Ctx) error {
 		secretKey := os.Getenv("AES_SECRET_KEY")
+		requestID := uuid.New().String()
 
 		var body IngestRequest
 		if err := c.BodyParser(&body); err != nil {
@@ -121,16 +143,45 @@ func main() {
 		results := fraud.Evaluate(payload, redisClient)
 
 		if fraud.HasFraud(results) {
+			fraudResults := fraud.GetFraudResults(results)
+			violations := make([]string, 0, len(fraudResults))
+			for _, v := range fraudResults {
+				violations = append(violations, v.Reason)
+			}
+
+			auditChan <- audit.AuditLog{
+				RequestID:  requestID,
+				DeviceID:   payload.DeviceID,
+				IP:         c.IP(),
+				Endpoint:   c.Path(),
+				Status:     "fraud_detected",
+				Violations: violations,
+				Payload:    payload,
+				CreatedAt:  time.Now(),
+			}
+
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"status":     "fraud_detected",
+				"request_id": requestID,
 				"message":    "Request ditolak karena terdeteksi aktivitas mencurigakan",
-				"violations": fraud.GetFraudResults(results),
+				"violations": fraudResults,
 				"all_checks": results,
 			})
 		}
 
+		auditChan <- audit.AuditLog{
+			RequestID: requestID,
+			DeviceID:  payload.DeviceID,
+			IP:        c.IP(),
+			Endpoint:  c.Path(),
+			Status:    "clean",
+			Payload:   payload,
+			CreatedAt: time.Now(),
+		}
+
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"status":     "clean",
+			"request_id": requestID,
 			"message":    "Data lolos semua pengecekan fraud",
 			"payload":    payload,
 			"all_checks": results,
@@ -173,6 +224,28 @@ func main() {
 		})
 	})
 
+	api.Get("/logs", func(c *fiber.Ctx) error {
+		cursor, err := auditCollection.Find(ctx, fiber.Map{})
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Gagal mengambil audit logs: " + err.Error(),
+			})
+		}
+		defer cursor.Close(ctx)
+
+		var logs []audit.AuditLog
+		if err := cursor.All(ctx, &logs); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Gagal membaca data audit logs: " + err.Error(),
+			})
+		}
+
+		return c.JSON(fiber.Map{
+			"total": len(logs),
+			"logs":  logs,
+		})
+	})
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3000"
@@ -180,3 +253,4 @@ func main() {
 	log.Printf("INFO: Server berjalan di port %s\n", port)
 	log.Fatal(app.Listen(":" + port))
 }
+
