@@ -4,8 +4,10 @@ import (
 	"context"
 	"log"
 	"os"
+	"time"
 
 	"antiFraudGateway/pkg/crypto"
+	"antiFraudGateway/pkg/middleware"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
@@ -26,7 +28,11 @@ func main() {
 		Password: os.Getenv("REDIS_PASSWORD"),
 		DB:       0,
 	})
-	redisClient.Ping(ctx)
+
+	if _, err := redisClient.Ping(ctx).Result(); err != nil {
+		log.Fatalf("FATAL: Gagal terhubung ke Redis: %v", err)
+	}
+	log.Println("INFO: Koneksi Redis berhasil.")
 
 	app := fiber.New()
 
@@ -38,19 +44,27 @@ func main() {
 		return c.SendString("Sistem Anti-Fraud berjalan normal")
 	})
 
-	app.Get("/api/v1/test-encrypt", func(c *fiber.Ctx) error {
+	apiKey := os.Getenv("API_KEY")
+	api := app.Group("/api/v1",
+		middleware.RateLimiter(redisClient, 10, 1*time.Second),
+		middleware.APIKeyAuth(apiKey),
+	)
+
+	api.Get("/testEncrypt", func(c *fiber.Ctx) error {
 		secretKey := os.Getenv("AES_SECRET_KEY")
 		dummyData := `{"device_id": "DEV-999", "latitude": -5.3971, "longitude": 105.2668, "is_mock_location": false}`
 
 		encryptedStr, err := crypto.EncryptAESGCM(dummyData, secretKey)
 		if err != nil {
-			return c.Status(500).SendString("Gagal mengenkripsi: " + err.Error())
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Gagal mengenkripsi: " + err.Error(),
+			})
 		}
 
 		return c.JSON(fiber.Map{"payload": encryptedStr})
 	})
 
-	app.Post("/api/v1/ingest", func(c *fiber.Ctx) error {
+	api.Post("/ingest", func(c *fiber.Ctx) error {
 		secretKey := os.Getenv("AES_SECRET_KEY")
 
 		var body IngestRequest
@@ -78,5 +92,6 @@ func main() {
 	if port == "" {
 		port = "3000"
 	}
+	log.Printf("INFO: Server berjalan di port %s\n", port)
 	log.Fatal(app.Listen(":" + port))
 }
