@@ -30,6 +30,14 @@ func main() {
 
 	app := fiber.New()
 
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("Selamat datang di API Gateway")
+	})
+
+	app.Get("/health", func(c *fiber.Ctx) error {
+		return c.SendString("Sistem Anti-Fraud berjalan normal")
+	})
+
 	app.Get("/api/v1/test-encrypt", func(c *fiber.Ctx) error {
 		secretKey := os.Getenv("AES_SECRET_KEY")
 		dummyData := `{"device_id": "DEV-999", "latitude": -5.3971, "longitude": 105.2668, "is_mock_location": false}`
@@ -61,7 +69,7 @@ func main() {
 
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"status":   "success",
-			"message":  "Data berhasil didekripsi oleh Sentinel",
+			"message":  "Data berhasil didekripsi",
 			"raw_data": decryptedData,
 		})
 	})
