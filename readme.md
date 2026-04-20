@@ -1,4 +1,4 @@
-# 🛡️ Anti-Fraud Gateway
+# Anti Fraud Gateway
 
 High-performance API Gateway untuk deteksi fraud secara real-time, dibangun dengan **Go (Fiber)**, **Redis**, dan **MongoDB**.
 
@@ -6,7 +6,7 @@ Gateway ini dirancang untuk menjadi lapisan pertahanan antara aplikasi mobile (S
 
 ---
 
-## 📐 Arsitektur Sistem
+## Arsitektur Sistem
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -18,48 +18,48 @@ Gateway ini dirancang untuk menjadi lapisan pertahanan antara aplikasi mobile (S
 ┌──────────────────────────────────────────────────────────────────┐
 │                     ANTI-FRAUD GATEWAY                           │
 │                                                                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────────┐    │
-│  │  Rate Limiter │→│  API Key Auth │→│  AES-GCM Decrypt    │    │
-│  │  (Redis)      │  │  (X-API-Key) │  │  (payload → JSON)  │    │
-│  └──────────────┘  └──────────────┘  └─────────┬───────────┘    │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────────┐     │
+│  │  Rate Limiter │→│  API Key Auth│ →│  AES-GCM Decrypt    │     │
+│  │  (Redis)      │ │  (X-API-Key) │  │  (payload → JSON)   │     │
+│  └──────────────┘  └──────────────┘  └─────────┬───────────┘     │
 │                                                 │                │
 │                                                 ▼                │
 │                                  ┌──────────────────────────┐    │
-│                                  │   FRAUD RULE ENGINE       │    │
-│                                  │   (Parallel Goroutines)   │    │
-│                                  │                           │    │
-│                                  │  ├─ CheckBlacklist        │    │
-│                                  │  ├─ CheckMockGPS          │    │
-│                                  │  └─ CheckTimestamp         │    │
+│                                  │   FRAUD RULE ENGINE      │    │
+│                                  │   (Parallel Goroutines)  │    │
+│                                  │                          │    │
+│                                  │  ├─ CheckBlacklist       │    │
+│                                  │  ├─ CheckMockGPS         │    │
+│                                  │  └─ CheckTimestamp       │    │
 │                                  └────────────┬─────────────┘    │
 │                                               │                  │
-│                               ┌───────────────┼───────────┐     │
-│                               ▼               ▼           │     │
-│                          FRAUD ✗         CLEAN ✅          │     │
-│                          403              200              │     │
-│                               │               │           │     │
-│                               └───────┬───────┘           │     │
-│                                       ▼                   │     │
-│                              ┌─────────────────┐          │     │
-│                              │  Audit Logger    │          │     │
-│                              │  (Async Channel) │          │     │
-│                              └────────┬────────┘          │     │
-│                                       ▼                   │     │
-│                              ┌─────────────────┐          │     │
-│                              │  Worker Pool     │          │     │
-│                              │  (3 Goroutines)  │          │     │
-│                              └────────┬────────┘          │     │
-│                                       ▼                   │     │
-│                              ┌─────────────────┐          │     │
-│                              │    MongoDB       │          │     │
-│                              │  (audit_logs)    │          │     │
-│                              └─────────────────┘          │     │
+│                               ┌───────────────┼───────────┐      │
+│                               ▼               ▼           │      │
+│                          FRAUD ✗         CLEAN ✅        │      │
+│                          403              200             │      │
+│                               │               │           │      │
+│                               └───────┬───────┘           │      │
+│                                       ▼                   │      │
+│                              ┌─────────────────┐          │      │
+│                              │  Audit Logger   │          │      │
+│                              │  (Async Channel)│          │      │
+│                              └────────┬────────┘          │      │
+│                                       ▼                   │      │
+│                              ┌─────────────────┐          │      │
+│                              │  Worker Pool    │          │      │
+│                              │  (3 Goroutines) │          │      │
+│                              └────────┬────────┘          │      │
+│                                       ▼                   │      │
+│                              ┌─────────────────┐          │      │
+│                              │    MongoDB      │          │      │
+│                              │  (audit_logs)   │          │      │ 
+│                              └─────────────────┘          │      │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🚀 Tech Stack
+## Tech Stack
 
 | Teknologi | Fungsi |
 |---|---|
@@ -73,7 +73,7 @@ Gateway ini dirancang untuk menjadi lapisan pertahanan antara aplikasi mobile (S
 
 ---
 
-## 📁 Struktur Proyek
+## Struktur Proyek
 
 ```
 antiFraudGateway/
@@ -106,7 +106,7 @@ antiFraudGateway/
 
 ---
 
-## ⚙️ Konfigurasi Environment
+## Konfigurasi Environment
 
 Buat file `.env` di root project:
 
@@ -132,7 +132,7 @@ MONGODB_DATABASE=
 
 ---
 
-## 🏃 Cara Menjalankan
+## Cara Menjalankan
 
 ### Prasyarat
 
@@ -168,7 +168,7 @@ Server akan berjalan di `http://localhost:3000`
 
 ---
 
-## 📡 API Endpoints
+## API Endpoints
 
 ### Route Publik (Tanpa Autentikasi)
 
@@ -195,7 +195,7 @@ X-API-Key: <your-api-key>
 
 ---
 
-## 📖 Dokumentasi API Detail
+## Dokumentasi API Detail
 
 ### 1. `GET /api/v1/testEncrypt`
 
@@ -236,7 +236,7 @@ Mengenkripsi body JSON kustom yang dikirimkan. Berguna untuk membuat skenario te
 
 ---
 
-### 3. `POST /api/v1/ingest` ⭐ Endpoint Utama
+### 3. `POST /api/v1/ingest` Endpoint Utama
 
 Menerima payload terenkripsi, mendekripsi, menjalankan evaluasi fraud, dan mencatat audit log.
 
@@ -365,7 +365,7 @@ Mengambil semua audit log yang tersimpan di MongoDB.
 
 ---
 
-## 🛡️ Aturan Fraud (Rule Engine)
+## Aturan Fraud (Rule Engine)
 
 Semua aturan dijalankan **secara paralel** menggunakan Goroutines + WaitGroup:
 
@@ -377,7 +377,7 @@ Semua aturan dijalankan **secara paralel** menggunakan Goroutines + WaitGroup:
 
 ---
 
-## 🔒 Lapisan Keamanan
+## Lapisan Keamanan
 
 | Layer | Mekanisme | HTTP Status |
 |---|---|---|
@@ -388,7 +388,7 @@ Semua aturan dijalankan **secara paralel** menggunakan Goroutines + WaitGroup:
 
 ---
 
-## 📊 Audit Logging
+## Audit Logging
 
 Setiap request ke `/api/v1/ingest` (baik `clean` maupun `fraud_detected`) dicatat secara **asinkron** ke MongoDB:
 
@@ -399,7 +399,7 @@ Setiap request ke `/api/v1/ingest` (baik `clean` maupun `fraud_detected`) dicata
 
 ---
 
-## 🧪 Testing dengan Postman
+## Testing dengan Postman
 
 ### Persiapan
 
@@ -423,7 +423,7 @@ Setiap request ke `/api/v1/ingest` (baik `clean` maupun `fraud_detected`) dicata
 
 ---
 
-## 📝 Catatan Pengembangan
+## Catatan Pengembangan
 
 Proyek ini dikembangkan dalam 5 fase:
 
