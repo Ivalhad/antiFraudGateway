@@ -155,6 +155,24 @@ func main() {
 		})
 	})
 
+	api.Delete("/blacklist", func(c *fiber.Ctx) error {
+		var body struct {
+			DeviceID string `json:"device_id"`
+		}
+		if err := c.BodyParser(&body); err != nil || body.DeviceID == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Kirim device_id yang ingin dihapus dari blacklist",
+			})
+		}
+
+		redisClient.SRem(ctx, "blacklist:devices", body.DeviceID)
+
+		return c.JSON(fiber.Map{
+			"status":  "success",
+			"message": fmt.Sprintf("Device '%s' berhasil dihapus dari blacklist", body.DeviceID),
+		})
+	})
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3000"
@@ -162,4 +180,3 @@ func main() {
 	log.Printf("INFO: Server berjalan di port %s\n", port)
 	log.Fatal(app.Listen(":" + port))
 }
-
